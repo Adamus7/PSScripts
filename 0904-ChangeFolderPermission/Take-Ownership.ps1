@@ -173,4 +173,34 @@ using System.Runtime.InteropServices;
   }
 }
 
-Take-Ownership -Path "Registry::HKLM\SOFTWARE\Classes\CLSID\{0000002F-0000-0000-C000-000000000046}" -User "Administrator" -Recurse -Verbose
+Take-Ownership -Path "Registry::HKLM\SOFTWARE\Classes\CLSID\{031E4825-7B94-4dc3-B131-E946B44C8DD5}" -User "yulab\adamus" -Recurse -Verbose
+
+#$Target = "Registry::HKLM\SOFTWARE\Classes\CLSID\{031E4825-7B94-4dc3-B131-E946B44C8DD5}"
+#$Acl = Get-Acl $Target
+#$Group = New-Object System.Security.Principal.NTAccount("Builtin", "Administrators")
+#$Acl.SetOwner($Group)
+#$Acl.SetAccessRuleProtection($true, $false)
+#$inherit = [system.security.accesscontrol.InheritanceFlags]"ContainerInherit,ObjectInherit"
+#$propagation = [system.security.accesscontrol.PropagationFlags]"None"
+
+#$accessrule_1 = New-Object System.Security.AccessControl.RegistryAccessRule("yulab\adamus", "FullControl", $inherit, $propagation, "Allow")
+#$Acl.AddAccessRule($accessrule_1)
+
+#Set-Acl -AclObject $Acl $Target
+
+
+$AddACL = New-Object System.Security.AccessControl.RegistryAccessRule ("yulab\adamus","FullControl","ObjectInherit,ContainerInherit","None","Allow")
+$owner = [System.Security.Principal.NTAccount]"Administrators"
+
+$keyCR = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("SOFTWARE\Classes\CLSID\{031E4825-7B94-4dc3-B131-E946B44C8DD5}",[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::takeownership)
+# Get a blank ACL since you don't have access and need ownership
+$aclCR = $keyCR.GetAccessControl([System.Security.AccessControl.AccessControlSections]::None)
+$aclCR.SetOwner($owner)
+$keyCR.SetAccessControl($aclCR)
+
+# Get the acl and modify it
+$aclCR = $keyCR.GetAccessControl()
+$aclCR.SetAccessRule($AddACL)
+$keyCR.SetAccessControl($aclCR)
+$keyCR.Close()
+Write-Host "..Done."
