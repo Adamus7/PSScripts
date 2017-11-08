@@ -204,3 +204,85 @@ $aclCR.SetAccessRule($AddACL)
 $keyCR.SetAccessControl($aclCR)
 $keyCR.Close()
 Write-Host "..Done."
+
+#Final version of deleting the keys
+$AdjustTokenPrivileges=@"
+using System;
+using System.Runtime.InteropServices;
+
+  public class TokenManipulator {
+    [DllImport("kernel32.dll", ExactSpelling = true)]
+      internal static extern IntPtr GetCurrentProcess();
+
+    [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+      internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen);
+    [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)]
+      internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok);
+    [DllImport("advapi32.dll", SetLastError = true)]
+      internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid);
+
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    internal struct TokPriv1Luid {
+      public int Count;
+      public long Luid;
+      public int Attr;
+    }
+
+    internal const int SE_PRIVILEGE_DISABLED = 0x00000000;
+    internal const int SE_PRIVILEGE_ENABLED = 0x00000002;
+    internal const int TOKEN_QUERY = 0x00000008;
+    internal const int TOKEN_ADJUST_PRIVILEGES = 0x00000020;
+
+    public static bool AddPrivilege(string privilege) {
+      bool retVal;
+      TokPriv1Luid tp;
+      IntPtr hproc = GetCurrentProcess();
+      IntPtr htok = IntPtr.Zero;
+      retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
+      tp.Count = 1;
+      tp.Luid = 0;
+      tp.Attr = SE_PRIVILEGE_ENABLED;
+      retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
+      retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+      return retVal;
+    }
+
+    public static bool RemovePrivilege(string privilege) {
+      bool retVal;
+      TokPriv1Luid tp;
+      IntPtr hproc = GetCurrentProcess();
+      IntPtr htok = IntPtr.Zero;
+      retVal = OpenProcessToken(hproc, TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ref htok);
+      tp.Count = 1;
+      tp.Luid = 0;
+      tp.Attr = SE_PRIVILEGE_DISABLED;
+      retVal = LookupPrivilegeValue(null, privilege, ref tp.Luid);
+      retVal = AdjustTokenPrivileges(htok, false, ref tp, 0, IntPtr.Zero, IntPtr.Zero);
+      return retVal;
+    }
+  }
+"@
+
+Write-Verbose "Giving current process token ownership rights"
+    Add-Type $AdjustTokenPrivileges -PassThru > $null
+    [void][TokenManipulator]::AddPrivilege("SeTakeOwnershipPrivilege") 
+    [void][TokenManipulator]::AddPrivilege("SeRestorePrivilege") 
+
+$AddACL = New-Object System.Security.AccessControl.RegistryAccessRule ("smr-adm-svm-002\ed","FullControl","ObjectInherit,ContainerInherit","None","Allow")
+$owner = [System.Security.Principal.NTAccount]"Administrators"
+
+$keyCR = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey("SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\Packages\", [Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::takeownership)
+# Get a blank ACL since you don't have access and need ownership
+$aclCR = $keyCR.GetAccessControl([System.Security.AccessControl.AccessControlSections]::None)
+$aclCR.SetOwner($owner)
+$keyCR.SetAccessControl($aclCR)
+
+# Get the acl and modify it
+$aclCR = $keyCR.GetAccessControl()
+$aclCR.SetAccessRule($AddACL)
+$keyCR.SetAccessControl($aclCR)
+$keyCR.Close()
+
+remove-item -path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\Packages\Microsoft-Windows-PowerShell-V2-ServerCore-WOW64-Package~31bf3856ad364e35~amd64~ja-JP~6.3.9600.16384' -Recurse
+
+Write-Host "..Done."
