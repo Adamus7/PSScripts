@@ -1,5 +1,0 @@
-#TYPE System.Management.Automation.PSCustomObject
-"ComputerName","Volume","Result"
-"yuwang-dell","C:","Failure - Unsupported File System"
-"yuwang-dell","D:","Failure - Unsupported File System"
-"Computer_2","","Computer_2 is unreachable."
