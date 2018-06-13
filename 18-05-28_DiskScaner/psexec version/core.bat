@@ -12,6 +12,7 @@ call :FolderScan "C:\" > %outputfile%
 call :FolderScan "C:\users" >> %outputfile%
 
 :: Copy the result to the share folder.
+:: Edit here to your Share Folder path
 copy %outputfile% \\yuwang-dell\Workspace\temp\FolderScanResult\%COMPUTERNAME%_result.csv
 
 :FolderScan folder
